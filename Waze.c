@@ -4,7 +4,6 @@
 
 
 
-//criar uma nova struct para compor a listaPronta, somente com os dados necessários(br, km, tipoAlerta e upvotes)
 
 
 typedef struct usuario {
@@ -207,6 +206,21 @@ void salvaDadosProcessados(DadosProcessados*lista){
 }
 
 
+void carregaArquivoProcessado(DadosProcessados **lista){
+    FILE *arquivo = fopen("alertas_processados.csv", "r");
+    while (!feof(arquivo)){
+        DadosProcessados *novo = malloc(sizeof(DadosProcessados));
+        fscanf(arquivo, "%d;%f;%c;%d", 
+            novo->br, 
+            novo->km, 
+            novo->tipoAlerta, 
+            novo->upvotes);
+        novo = novo->proximo;
+    }
+    fclose(arquivo);
+    
+}
+
 void salvaArquivoDoUsuario(DadosProcessados *lista) {
     FILE *arquivo = fopen("alertas_por_br.csv", "w");
     if (!arquivo) { printf("Não foi possível abrir o arquivo\n"); return; }
@@ -257,76 +271,50 @@ void relatorioDealertaParaUsuario(DadosProcessados *lista) {
     salvaArquivoDoUsuario(listaAux);
     imprimeRelatorio(listaAux);
     liberaMemoriaDaListaAuxiliar(listaAux);
-    ; //cuidado
+    ; 
 }
 
 
-void relatorioTodasBr(DadosProcessados *lista) {
+void relatorioTodasBr(HashTable *tabela) {
     DadosProcessados *listaAux = NULL;
 
-    DadosProcessados *noAtual = lista;
-    while(noAtual != NULL) {
-        
-        int totalUpvotes = 0;
-        int achouNoAux = 0;
-        DadosProcessados *verifica = listaAux;
-        while (verifica != NULL) {
-            if (verifica->br == noAtual->br && verifica->tipoAlerta == noAtual->tipoAlerta) {
-                achouNoAux = 1;
-                break;
-            }
-            verifica = verifica->proximo;
-        }
-
-    
-        if (!achouNoAux) {
-           
-           DadosProcessados *noDois = lista; 
-            while(noDois != NULL) {
-                if (noAtual->br == noDois->br && noAtual->tipoAlerta == noDois->tipoAlerta) {
-                   
-                    totalUpvotes += noDois->upvotes; 
+    for (int i = 0; i < tabela->capacidade; i++) {
+        Pair *atual = tabela->lista[i];
+        while (atual != NULL) {
+            DadosProcessados *noLista = listaAux;
+            while (noLista != NULL) {
+                if (noLista->br == atual->br && noLista->tipoAlerta == atual->tipoAlerta) {
+                    noLista->upvotes += atual->upvotes;  
+                    break;
                 }
-                noDois = noDois->proximo;
+                noLista = noLista->proximo;
             }
-            
+
            
-            DadosProcessados *novo = malloc(sizeof(Usuario));
-            if (!novo) { printf("Erro de alocação de memória.\n"); return; }
-            
-            
-            novo->br = noAtual->br;
-            novo->tipoAlerta = noAtual->tipoAlerta;
-            novo->upvotes = totalUpvotes; 
-            
-          
-            novo->proximo = listaAux;
-            listaAux = novo;
+            if (noLista == NULL) {
+                DadosProcessados *novo = malloc(sizeof(DadosProcessados));
+                novo->br = atual->br;
+                novo->tipoAlerta = atual->tipoAlerta;
+                novo->upvotes = atual->upvotes;
+                novo->proximo = listaAux;
+                listaAux = novo;
+            }
+
+            atual = atual->proximo;
         }
-        
-        noAtual = noAtual->proximo;
     }
 
     FILE *arquivo = fopen("alertas_br_todas.csv", "w");
-    if (!arquivo) { 
-        printf("Não foi possível abrir o arquivo alertas_br_todas.csv\n"); 
-        liberaMemoriaDaListaAuxiliar(listaAux);
-        return; 
-    }
-    
-    fprintf(arquivo,"br;tipoAlerta;upvotes\n"); 
+    fprintf(arquivo, "br;tipoAlerta;upvotes\n");
     DadosProcessados *aux = listaAux;
-    while(aux != NULL){
+    while(aux!=NULL){
         fprintf(arquivo, "%d;%c;%d\n", aux->br, aux->tipoAlerta, aux->upvotes);
-    
         printf("%d;%c;%d\n", aux->br, aux->tipoAlerta, aux->upvotes);
-
         aux = aux->proximo;
     }
 
-    
-    liberaMemoriaDaListaAuxiliar(listaAux);
     fclose(arquivo);
+    liberaMemoriaDaListaAuxiliar(listaAux);
 }
 
 
@@ -363,6 +351,7 @@ int main() {
     inicializaHash(&tabela);
     Usuario *listaDeUsuariosTotal = NULL;
     DadosProcessados *listaPronta = NULL;
+    
 
     char *arquivos [] = 
     {"alertas_1000_1.csv",
@@ -392,7 +381,7 @@ int main() {
                 relatorioDealertaParaUsuario(listaPronta);
                 break;
             case 2:
-                relatorioTodasBr(listaPronta);
+                relatorioTodasBr(&tabela);
                 break;
             default:
                 printf("Opção inválida\n");
