@@ -3,8 +3,6 @@
 #include <string.h>
 
 
-
-
 typedef struct usuario {
     int idUsuario;
     long horarioEP;
@@ -50,7 +48,7 @@ int hash(int br, char tipo) {
 
 void inicializaHash(HashTable *tabela) {
     tabela->capacidade = 223;
-    tabela->lista = calloc(223,  sizeof(Pair*)); //iniciar a hash com tudo NULL
+    tabela->lista = calloc(223,  sizeof(Pair*));
     if (tabela->lista == NULL) {
         printf("Erro ao alocar memória.\n");
         return;
@@ -59,13 +57,13 @@ void inicializaHash(HashTable *tabela) {
 }
 
 
-void insereHash(HashTable *tabela, int br, float km, char tipo) {
+void insereHash(HashTable *tabela, int br, float km, char tipo, int upvotes) {
     int indice = hash(br, tipo);
     Pair *atual = tabela->lista[indice];
 
     while (atual != NULL) {
         if (atual->br == br && atual->km == km && atual->tipoAlerta == tipo) {
-            atual->upvotes++;
+            atual->upvotes+=upvotes;
             return;
         }
         atual = atual->proximo;
@@ -80,8 +78,7 @@ void insereHash(HashTable *tabela, int br, float km, char tipo) {
     novo->br = br;
     novo->km = km;
     novo->tipoAlerta = tipo;
-    novo->upvotes = 1;
-
+    novo->upvotes = upvotes;
     novo->proximo = tabela->lista[indice];
     tabela->lista[indice] = novo;
 }
@@ -95,13 +92,14 @@ void carregaArquivo(Usuario **listaDeUsuarios, char *nome) {
         return;
     }
 
-    char titulo[200];
+    char titulo[150];
     fgets(titulo, sizeof(titulo), arquivo);
 
     while (1) {
         Usuario *novoUsuario = malloc(sizeof(Usuario));
         if (!novoUsuario) {
             printf("Erro de memória\n");
+            fclose(arquivo);
             return;
         }
 
@@ -111,7 +109,7 @@ void carregaArquivo(Usuario **listaDeUsuarios, char *nome) {
             &novoUsuario->br,
             &novoUsuario->km,
             &novoUsuario->tipoAlerta) != 5) {
-
+            free(novoUsuario);
             break; 
         }
 
@@ -144,24 +142,38 @@ void salvaDadosProcessados(DadosProcessados*lista){
     fclose(arquivo);
 }
 
-void carregaArquivoProcessado(DadosProcessados **lista){
+void carregaArquivoProcessado(DadosProcessados **lista) {
     FILE *arquivo = fopen("alertas_processados.csv", "r");
-    if (!arquivo){
-        printf("não foi possivel abrir o arquivo.\n");
+    if (!arquivo) {
         return;
     }
-    while (!feof(arquivo)){
+    char titulo[150];
+    fgets(titulo, sizeof(titulo), arquivo); 
+    while (1) {
         DadosProcessados *novo = malloc(sizeof(DadosProcessados));
-        fscanf(arquivo, "%d;%f;%c;%d", 
-            novo->br, 
-            novo->km, 
-            novo->tipoAlerta, 
-            novo->upvotes);
-        novo = novo->proximo;
+        if (!novo) {
+            printf("Erro na alocação de memória.\n");
+            fclose(arquivo);
+            break;
+        }
+
+        if (fscanf(arquivo, "%d;%f;%c;%d", 
+            &novo->br, 
+            &novo->km, 
+            &novo->tipoAlerta, 
+            &novo->upvotes) != 4) 
+            {
+            free(novo);
+            break;      
+        }
+
+        novo->proximo = *lista;
+        *lista = novo;
     }
+
     fclose(arquivo);
-    
 }
+
 
 void salvaArquivoDoUsuario(DadosProcessados *lista) {
     FILE *arquivo = fopen("alertas_por_br.csv", "w");
@@ -217,6 +229,25 @@ void liberaMemoriaDaListaAuxiliar(DadosProcessados *lista){
         atual = proximo;
     }
 }
+void liberaListaHash(Pair *lista) {
+    Pair *atual = lista;
+    while (atual != NULL) {
+        Pair *proximo = atual->proximo;
+        free(atual);
+        atual = proximo;
+    }
+}
+
+void liberaHash(HashTable *tabela) {
+    for (int i = 0; i < tabela->capacidade; i++) {
+        liberaListaHash(tabela->lista[i]);
+        }
+
+
+    free(tabela->lista);
+}
+
+
     
 
 void juntaKm(Usuario **lista, HashTable *tabela){
@@ -230,7 +261,7 @@ void juntaKm(Usuario **lista, HashTable *tabela){
             km = (int)km + 0.5;
         }
         noAtual->km = km;
-        insereHash(tabela, noAtual->br, noAtual->km, noAtual->tipoAlerta);
+        insereHash(tabela, noAtual->br, noAtual->km, noAtual->tipoAlerta, 1);
         noAtual = noAtual->proximo;
     }
     noAtual = *lista;
@@ -238,7 +269,18 @@ void juntaKm(Usuario **lista, HashTable *tabela){
 }
 
 void percorreHash(Usuario **listaDeUsuariosTotal, DadosProcessados **listaPronta, HashTable *tabela) {
+    
+    if(*listaDeUsuariosTotal == NULL){
+        DadosProcessados *noAtual = *listaPronta;
+        while(noAtual!=NULL){
+            insereHash(tabela, noAtual->br, noAtual->km, noAtual->tipoAlerta, noAtual->upvotes);
+            noAtual = noAtual->proximo;
+        }
+        return;
+    } 
+    
     juntaKm(listaDeUsuariosTotal, tabela);
+
     
     for (int i = 0; i < tabela->capacidade; i++) {
         Pair *atual = tabela->lista[i];
@@ -278,6 +320,78 @@ void imprimeRelatorio(DadosProcessados *lista) {
     }
 }
 
+
+void desenhaTrechoFiltrado(DadosProcessados *listaFiltrada, int brEscolhida, float kmInicio, float kmFim) {
+    char linha[100][10];  
+    for (int i = 0; i < 100; i++){
+        linha[i][0] = '\0';
+    }
+
+    float intervalo = kmFim - kmInicio;
+
+    DadosProcessados *atual = listaFiltrada;
+    while (atual != NULL) {
+        int pos = (int)(((atual->km - kmInicio) / intervalo) * 99);
+
+        if (pos >= 0 && pos < 100) {
+            int len = strlen(linha[pos]);
+            if (len < 9) {
+                linha[pos][len] = atual->tipoAlerta;
+                linha[pos][len + 1] = '\0';
+            }
+        }
+
+        atual = atual->proximo;
+    }
+
+    printf("\n");
+    printf("\033[1;37mRepresentação visual dos alertas da BR-%d (km %.1f a %.1f):\033[0m\n",
+           brEscolhida, kmInicio, kmFim);
+    
+    printf("      ");
+    for (int i = 0; i < 102; i++) printf("=");
+    printf("\n");
+
+    printf("Km %.0f | ", kmInicio);
+
+    for (int i = 0; i < 100; i++) {
+        if (linha[i][0] == '\0') {
+            printf(".");
+        } else {
+            for (int j = 0; linha[i][j] != '\0'; j++) {
+                switch (linha[i][j]) {
+                    case 'A': 
+                        printf("\033[31mA\033[0m"); 
+                        break; 
+                    case 'B': 
+                        printf("\033[33mB\033[0m"); 
+                        break; 
+                    case 'C': 
+                        printf("\033[32mC\033[0m"); 
+                        break;
+                    case 'D': 
+                        printf("\033[36mD\033[0m"); 
+                        break;
+                    case 'E': 
+                        printf("\033[35mE\033[0m"); 
+                        break; 
+                    case 'F': 
+                        printf("\033[34mF\033[0m"); 
+                        break;
+                    default:  
+                        printf("%c", linha[i][j]); 
+                        break;
+                }
+            }
+        }
+    }
+
+    printf("| %.0f km\n", kmFim);
+    printf("      ");
+    for (int i = 0; i < 102; i++) printf("=");
+    printf("\n");
+}
+
 void relatorioDealertaParaUsuario(DadosProcessados *lista) {
     DadosProcessados *listaAux = NULL;
     DadosProcessados *noAtual;
@@ -285,6 +399,13 @@ void relatorioDealertaParaUsuario(DadosProcessados *lista) {
     float inicio, fim;
     printf("Informe BR e intervalo de km [BR INICIO FIM]: ");
     scanf("%d %f %f", &BR, &inicio, &fim);
+    getchar();
+    float intervalo = fim - inicio;
+    
+    if (intervalo <= 0) {
+        printf("\nIntervalo inválido. O km final deve ser maior que o inicial.\n");
+        return;
+    }
 
     noAtual = lista;
     while (noAtual != NULL) {
@@ -301,7 +422,14 @@ void relatorioDealertaParaUsuario(DadosProcessados *lista) {
     }
 
     salvaArquivoDoUsuario(listaAux);
+    
+    if (listaAux == NULL) {
+        printf("\nNenhum alerta encontrado na BR-%d entre os km %.1f e %.1f.\n",
+               BR, inicio, fim);
+        return;
+    }
     imprimeRelatorio(listaAux);
+    desenhaTrechoFiltrado(listaAux, BR, inicio, fim);
     liberaMemoriaDaListaAuxiliar(listaAux);
     ; 
 }
@@ -348,14 +476,19 @@ void relatorioTodasBr(HashTable *tabela) {
 // ============================== MAIN, MENU E VALIDAÇÃO DE ESCOLHAS ==========================
 
 int menu() {
-    char escolha;
+    char escolha[10];
     printf("Olá, seja bem-vindo ao UEIZI. Digite:\n");
     printf("0 - Sair do UEIZI\n");
     printf("1 - Procurar perigo em determinado trecho de uma BR\n");
     printf("2 - Ver todos os perigos cadastrados no aplicativo\n");
     printf("Escolha: ");
-    scanf(" %c", &escolha);
-    int opcao = escolha - '0';
+    
+    fgets(escolha, sizeof(escolha), stdin);
+
+    if (strlen(escolha)!=2){
+        return -1;
+    }
+    int opcao = escolha[0] - '0';
     return opcao;
 }
 
@@ -372,27 +505,30 @@ int main() {
     "alertas_100000_1.csv",
     "alertas_100000_2.csv",
     "alertas_1000000.csv"};
-    
-   
-    for (int i = 0  ; i < 5 ; i++){
-        carregaArquivo(&listaDeUsuariosTotal, arquivos[i]);
+    carregaArquivoProcessado(&listaPronta);
+
+    if (listaPronta == NULL){
+        for (int i = 0  ; i < 5 ; i++){
+            carregaArquivo(&listaDeUsuariosTotal, arquivos[i]);
+        }
+        
     }
-
-
-
-
     percorreHash(&listaDeUsuariosTotal, &listaPronta, &tabela);
 
     int repetindo = 1;
     while (repetindo) {
         int opcoes = menu();
         switch(opcoes) {
+            
             case 0:
                 repetindo = 0;
                 salvaDadosProcessados(listaPronta);
                 printf("Programa finalizado\n");
+                liberaMemoriaDaListaAuxiliar(listaPronta);
+                liberaHash(&tabela);
                 break;
-            case 1:
+            
+                case 1:
                 relatorioDealertaParaUsuario(listaPronta);
                 break;
             case 2:
