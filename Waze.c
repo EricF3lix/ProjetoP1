@@ -5,7 +5,6 @@
 
 
 
-
 typedef struct usuario {
     int idUsuario;
     long horarioEP;
@@ -25,6 +24,7 @@ typedef struct dadosProcessados{
     struct dadosProcessados *proximo;
 } DadosProcessados;
 
+
 typedef struct pair {
     int br;
     float km;
@@ -39,7 +39,7 @@ typedef struct {
     int capacidade;
 } HashTable;
 
-// operacao de HASH  //tam 223
+//============================ TUDO QUE MEXE COM A TABELA HASH =======================================
 int hash(int br, char tipo) {
     int valor = tipo;
     int indice = (valor * 1000 + br)%223;
@@ -85,8 +85,9 @@ void insereHash(HashTable *tabela, int br, float km, char tipo) {
     novo->proximo = tabela->lista[indice];
     tabela->lista[indice] = novo;
 }
+// ====================================================================================
 
-
+// ========================= TODAS AS MANIPULAÇÕES DE ARQUIVO ==============================================
 void carregaArquivo(Usuario **listaDeUsuarios, char *nome) {
     FILE *arquivo = fopen(nome, "r");
     if (!arquivo) {
@@ -111,7 +112,7 @@ void carregaArquivo(Usuario **listaDeUsuarios, char *nome) {
             &novoUsuario->km,
             &novoUsuario->tipoAlerta) != 5) {
 
-            break; // Sai do loop.
+            break; 
         }
 
         novoUsuario->upvotes = 0;
@@ -123,6 +124,82 @@ void carregaArquivo(Usuario **listaDeUsuarios, char *nome) {
     fclose(arquivo);
 }
 
+void salvaDadosProcessados(DadosProcessados*lista){
+    FILE *arquivo = fopen("alertas_processados.csv", "w");
+    if (!arquivo){
+        printf("nao foi possivel abrir o arquivo.\n");
+        return;
+    }
+    fprintf(arquivo, "br;km;tipoAlerta;upvotes\n");
+    DadosProcessados *noAtual = lista;
+    while(noAtual!=NULL){
+        fprintf(arquivo, "%d;%.1f;%c;%d\n", 
+            noAtual->br,
+            noAtual->km,
+            noAtual->tipoAlerta, 
+            noAtual->upvotes);
+        
+        noAtual = noAtual->proximo;
+    }
+    fclose(arquivo);
+}
+
+void carregaArquivoProcessado(DadosProcessados **lista){
+    FILE *arquivo = fopen("alertas_processados.csv", "r");
+    if (!arquivo){
+        printf("não foi possivel abrir o arquivo.\n");
+        return;
+    }
+    while (!feof(arquivo)){
+        DadosProcessados *novo = malloc(sizeof(DadosProcessados));
+        fscanf(arquivo, "%d;%f;%c;%d", 
+            novo->br, 
+            novo->km, 
+            novo->tipoAlerta, 
+            novo->upvotes);
+        novo = novo->proximo;
+    }
+    fclose(arquivo);
+    
+}
+
+void salvaArquivoDoUsuario(DadosProcessados *lista) {
+    FILE *arquivo = fopen("alertas_por_br.csv", "w");
+    if (!arquivo) { 
+        printf("Não foi possível abrir o arquivo\n"); 
+        return; 
+    }
+
+    fprintf(arquivo, "br;km;tipoAlerta;upvotes\n");
+    DadosProcessados *atual = lista;
+    while (atual != NULL) {
+        fprintf(arquivo, "%d;%.1f;%c;%d\n",
+            atual->br, atual->km, atual->tipoAlerta, atual->upvotes);
+        atual = atual->proximo;
+    }
+
+    fclose(arquivo);
+}
+
+
+void salvaRelatorioTodasBr(DadosProcessados *lista){
+    FILE *arquivo = fopen("alertas_br_todas.csv", "w");
+    if (!arquivo){
+        printf("Não foi possível abrir o arquivo.\n");
+        return;
+    }
+    fprintf(arquivo, "br;tipoAlerta;quantidade\n");
+    DadosProcessados *aux = lista;
+    while(aux!=NULL){
+        fprintf(arquivo, "%d;%c;%d\n", aux->br, aux->tipoAlerta, aux->upvotes);
+        printf("%d;%c;%d\n", aux->br, aux->tipoAlerta, aux->upvotes);
+        aux = aux->proximo;
+    }
+
+    fclose(arquivo);
+}
+// =============================================================================================
+// ================================ MANIPULAÇÃO DE LISTAS E DA TABELA HASH =====================================
 void liberaMemoriaDaListaTotal(Usuario *lista) {
     Usuario *atual = lista;
     while (atual != NULL) {
@@ -142,8 +219,8 @@ void liberaMemoriaDaListaAuxiliar(DadosProcessados *lista){
 }
     
 
-void percorreListaJuntando(Usuario **listaDeUsuariosTotal, DadosProcessados **listaPronta, HashTable *tabela) {
-    Usuario *noAtual = *listaDeUsuariosTotal;
+void juntaKm(Usuario **lista, HashTable *tabela){
+    Usuario *noAtual = *lista;
     while (noAtual != NULL) {
         float km = noAtual->km;
         if ((km - (int)km) < 0.5) {
@@ -156,9 +233,13 @@ void percorreListaJuntando(Usuario **listaDeUsuariosTotal, DadosProcessados **li
         insereHash(tabela, noAtual->br, noAtual->km, noAtual->tipoAlerta);
         noAtual = noAtual->proximo;
     }
-    noAtual = *listaDeUsuariosTotal;
+    noAtual = *lista;
 
+}
 
+void percorreHash(Usuario **listaDeUsuariosTotal, DadosProcessados **listaPronta, HashTable *tabela) {
+    juntaKm(listaDeUsuariosTotal, tabela);
+    
     for (int i = 0; i < tabela->capacidade; i++) {
         Pair *atual = tabela->lista[i];
         while (atual != NULL) {
@@ -184,58 +265,9 @@ void percorreListaJuntando(Usuario **listaDeUsuariosTotal, DadosProcessados **li
     }
 
     liberaMemoriaDaListaTotal(*listaDeUsuariosTotal);
-    // lembrar de apagar a hash
 }
-
-
-
-void salvaDadosProcessados(DadosProcessados*lista){
-    FILE *arquivo = fopen("alertas_processados.csv", "w");
-    fprintf(arquivo, "br;km;tipoAlerta;upvotes\n");
-    DadosProcessados *noAtual = lista;
-    while(noAtual!=NULL){
-        fprintf(arquivo, "%d;%.1f;%c;%d\n", 
-            noAtual->br,
-            noAtual->km,
-            noAtual->tipoAlerta, 
-            noAtual->upvotes);
-        
-        noAtual = noAtual->proximo;
-    }
-    fclose(arquivo);
-}
-
-
-void carregaArquivoProcessado(DadosProcessados **lista){
-    FILE *arquivo = fopen("alertas_processados.csv", "r");
-    while (!feof(arquivo)){
-        DadosProcessados *novo = malloc(sizeof(DadosProcessados));
-        fscanf(arquivo, "%d;%f;%c;%d", 
-            novo->br, 
-            novo->km, 
-            novo->tipoAlerta, 
-            novo->upvotes);
-        novo = novo->proximo;
-    }
-    fclose(arquivo);
-    
-}
-
-void salvaArquivoDoUsuario(DadosProcessados *lista) {
-    FILE *arquivo = fopen("alertas_por_br.csv", "w");
-    if (!arquivo) { printf("Não foi possível abrir o arquivo\n"); return; }
-
-    fprintf(arquivo, "br;km;tipoAlerta;upvotes\n");
-    DadosProcessados *atual = lista;
-    while (atual != NULL) {
-        fprintf(arquivo, "%d;%.1f;%c;%d\n",
-            atual->br, atual->km, atual->tipoAlerta, atual->upvotes);
-        atual = atual->proximo;
-    }
-
-    fclose(arquivo);
-}
-
+// ========================================================================================
+// ================================= MANIPULAÇÃO DOS RELATORIOS =========================================
 void imprimeRelatorio(DadosProcessados *lista) {
     printf("br;km;tipoAlerta;upvotes\n");
     DadosProcessados *atual = lista;
@@ -282,20 +314,23 @@ void relatorioTodasBr(HashTable *tabela) {
         Pair *atual = tabela->lista[i];
         while (atual != NULL) {
             DadosProcessados *noLista = listaAux;
+            int achou = 0;
             while (noLista != NULL) {
                 if (noLista->br == atual->br && noLista->tipoAlerta == atual->tipoAlerta) {
                     noLista->upvotes += atual->upvotes;  
+                    achou = 1;
                     break;
                 }
                 noLista = noLista->proximo;
             }
 
            
-            if (noLista == NULL) {
+            if (!achou ) {
                 DadosProcessados *novo = malloc(sizeof(DadosProcessados));
                 novo->br = atual->br;
                 novo->tipoAlerta = atual->tipoAlerta;
                 novo->upvotes = atual->upvotes;
+                
                 novo->proximo = listaAux;
                 listaAux = novo;
             }
@@ -304,33 +339,13 @@ void relatorioTodasBr(HashTable *tabela) {
         }
     }
 
-    FILE *arquivo = fopen("alertas_br_todas.csv", "w");
-    fprintf(arquivo, "br;tipoAlerta;upvotes\n");
-    DadosProcessados *aux = listaAux;
-    while(aux!=NULL){
-        fprintf(arquivo, "%d;%c;%d\n", aux->br, aux->tipoAlerta, aux->upvotes);
-        printf("%d;%c;%d\n", aux->br, aux->tipoAlerta, aux->upvotes);
-        aux = aux->proximo;
-    }
-
-    fclose(arquivo);
+    
+    salvaRelatorioTodasBr(listaAux);
     liberaMemoriaDaListaAuxiliar(listaAux);
 }
 
-
-
-
-
-
-int validaEscolha(char escolha, char opcoesValidas[]) {
-    while (1) {
-        for (int i = 0; i < 4; i++) {
-            if (escolha == opcoesValidas[i]) return escolha - '0';
-        }
-        printf("Entrada inválida. Tente novamente: ");
-        scanf(" %c", &escolha);
-    }
-}
+// ============================================================================================
+// ============================== MAIN, MENU E VALIDAÇÃO DE ESCOLHAS ==========================
 
 int menu() {
     char escolha;
@@ -340,8 +355,8 @@ int menu() {
     printf("2 - Ver todos os perigos cadastrados no aplicativo\n");
     printf("Escolha: ");
     scanf(" %c", &escolha);
-    char opcoesValidas[4] = {'0','1','2','3'};
-    return validaEscolha(escolha, opcoesValidas);
+    int opcao = escolha - '0';
+    return opcao;
 }
 
 
@@ -351,14 +366,14 @@ int main() {
     inicializaHash(&tabela);
     Usuario *listaDeUsuariosTotal = NULL;
     DadosProcessados *listaPronta = NULL;
-    
-
     char *arquivos [] = 
     {"alertas_1000_1.csv",
     "alertas_1000_2.csv",
-    "alertas_1000000.csv",
     "alertas_100000_1.csv",
-    "alertas_100000_2.csv"};
+    "alertas_100000_2.csv",
+    "alertas_1000000.csv"};
+    
+   
     for (int i = 0  ; i < 5 ; i++){
         carregaArquivo(&listaDeUsuariosTotal, arquivos[i]);
     }
@@ -366,7 +381,7 @@ int main() {
 
 
 
-    percorreListaJuntando(&listaDeUsuariosTotal, &listaPronta, &tabela);
+    percorreHash(&listaDeUsuariosTotal, &listaPronta, &tabela);
 
     int repetindo = 1;
     while (repetindo) {
