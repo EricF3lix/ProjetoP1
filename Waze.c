@@ -79,6 +79,7 @@ void insereHash(HashTable *tabela, int br, float km, char tipo, int upvotes) {
     novo->km = km;
     novo->tipoAlerta = tipo;
     novo->upvotes = upvotes;
+    
     novo->proximo = tabela->lista[indice];
     tabela->lista[indice] = novo;
 }
@@ -320,8 +321,10 @@ void imprimeRelatorio(DadosProcessados *lista) {
     }
 }
 
+//  ============================== DESENHO COLORIDO ===============================================
 
 void desenhaTrechoFiltrado(DadosProcessados *listaFiltrada, int brEscolhida, float kmInicio, float kmFim) {
+    
     char linha[100][10];  
     for (int i = 0; i < 100; i++){
         linha[i][0] = '\0';
@@ -349,7 +352,7 @@ void desenhaTrechoFiltrado(DadosProcessados *listaFiltrada, int brEscolhida, flo
            brEscolhida, kmInicio, kmFim);
     
     printf("      ");
-    for (int i = 0; i < 102; i++) printf("=");
+    for (int i = 0; i < 106; i++) printf("=");
     printf("\n");
 
     printf("Km %.0f | ", kmInicio);
@@ -388,9 +391,10 @@ void desenhaTrechoFiltrado(DadosProcessados *listaFiltrada, int brEscolhida, flo
 
     printf("| %.0f km\n", kmFim);
     printf("      ");
-    for (int i = 0; i < 102; i++) printf("=");
+    for (int i = 0; i < 106; i++) printf("=");
     printf("\n");
 }
+// =============================================================================================================
 
 void relatorioDealertaParaUsuario(DadosProcessados *lista) {
     DadosProcessados *listaAux = NULL;
@@ -415,6 +419,7 @@ void relatorioDealertaParaUsuario(DadosProcessados *lista) {
             achou->km = noAtual->km;
             achou->tipoAlerta = noAtual->tipoAlerta;
             achou->upvotes = noAtual->upvotes;
+            
             achou->proximo = listaAux;
             listaAux = achou;
         }
@@ -428,10 +433,10 @@ void relatorioDealertaParaUsuario(DadosProcessados *lista) {
                BR, inicio, fim);
         return;
     }
+
     imprimeRelatorio(listaAux);
     desenhaTrechoFiltrado(listaAux, BR, inicio, fim);
-    liberaMemoriaDaListaAuxiliar(listaAux);
-    ; 
+    liberaMemoriaDaListaAuxiliar(listaAux); 
 }
 
 
@@ -467,7 +472,6 @@ void relatorioTodasBr(HashTable *tabela) {
         }
     }
 
-    
     salvaRelatorioTodasBr(listaAux);
     liberaMemoriaDaListaAuxiliar(listaAux);
 }
@@ -505,6 +509,7 @@ int main() {
     "alertas_100000_1.csv",
     "alertas_100000_2.csv",
     "alertas_1000000.csv"};
+    
     carregaArquivoProcessado(&listaPronta);
 
     if (listaPronta == NULL){
